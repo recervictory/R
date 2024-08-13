@@ -1,6 +1,6 @@
 ##### IMPORTANT LIBRARY ########
 
-library(futile.logger)
+lapply(c("dplyr","Seurat","HGNChelper","openxlsx","futile.logger"), library, character.only = T)
 
 
 ####### Load Seuart Object ##########
@@ -488,7 +488,7 @@ replace_surat_NA <- function(seurat_obj, col_name, replacement_value = "Unknown"
 
 ############ ScType ##########
 
-lapply(c("dplyr","Seurat","HGNChelper","openxlsx","futile.logger"), library, character.only = T)
+
 
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R") 
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
