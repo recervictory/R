@@ -1,20 +1,33 @@
 ##### IMPORTANT LIBRARY ########
+library(logger)
+library(Seurat)
+library(Seurat)
+library(futile.logger)
+library(scCustomize)
+library(patchwork)
+library(ggplot2)
+library(ggtext)
 
 lapply(c("dplyr","Seurat","HGNChelper","openxlsx","futile.logger"), library, character.only = T)
 
 
 ####### Load Seuart Object ##########
 
-load_seurat_object <- function(file_name, project_name, batch_name, data_dir = "data") {
+load_seurat_object <- function(file_name, project_name=NA, batch_name=NA, data_dir = "data") {
   flog.info("Project Name: %s", project_name)
   flog.info("Batch Name: %s", batch_name)
   
   project_name_cleaned <- gsub(" ", "_", project_name)
-  batch_name_cleaned <- gsub(" ", "_", batch_name)
   
-  file_name <- paste(project_name_cleaned, batch_name_cleaned, file_name, sep = ".")
+  # Construct file name based on the presence of batch_name
+  if (is.na(batch_name)) {
+    file_name <- paste(project_name_cleaned, file_name, sep = ".")
+  } else {
+    batch_name_cleaned <- gsub(" ", "_", batch_name)
+    file_name <- paste(project_name_cleaned, batch_name_cleaned, file_name, sep = ".")
+  }
+  
   flog.info("Seurat Object File Name: %s", file_name)
-  
   
   file_path <- file.path(data_dir, file_name)
   flog.info("Saving Filter for: %s", file_path)
@@ -26,8 +39,6 @@ load_seurat_object <- function(file_name, project_name, batch_name, data_dir = "
 }
 
 #### RUN seurat PipeLine ####
-library(logger)
-library(Seurat)
 
 process_seurat_object <- function(seurat_object , dims = 1:30, nfeatures = 3000) {
   flog.info("NormalizeData Started...")
@@ -500,7 +511,8 @@ scType_cell_prediction <- function(seuratObject,
                                    databasepat, 
                                    tissue, 
                                    metedatadata_col_name, 
-                                   overwrite = TRUE, 
+                                   overwrite = TRUE,
+                                   assay = "RNA",
                                    verbose = TRUE) {
   # Setup logging
   library(logging)
@@ -525,9 +537,9 @@ scType_cell_prediction <- function(seuratObject,
   # Extract scaled data
   flog.info("Extracting scaled data.")
   scRNAseqData_scaled <- if (seurat_package_v5) {
-    as.matrix(seuratObject[["RNA"]]$scale.data)
+    as.matrix(seuratObject@assays$integated@scale.data)
   } else {
-    as.matrix(seuratObject[["RNA"]]@scale.data)
+    as.matrix(seuratObject[[assay]]@scale.data)
   }
   flog.info("Scaled data extracted.")
   
