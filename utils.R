@@ -198,3 +198,64 @@ integrateAndClusterSeurat <- function(
     stop("The integrateAndClusterSeurat function failed. Please check the input parameters and try again.")
   })
 }
+
+
+save_plot <- function(plot_object, plot_dir, count = "00", file_name = "image", project_name = "", format = "png", batch_name = "", plot_type = "scatter", width = 800, height = 800, dpi = 72, ...) {
+  
+  # Ensure plot_dir exists
+  if (!dir.exists(plot_dir)) {
+    dir.create(plot_dir, recursive = TRUE)
+  }
+  
+  # Normalize file path and construct file name
+  file_extension <- switch(format,
+                           png = "png",
+                           pdf = "pdf",
+                           jpeg = "jpg",
+                           tiff = "tiff",
+                           "png") # default to png if format is not recognized
+  
+  file_name <- paste(count, project_name, batch_name, file_name, plot_type, sep = "_")
+  file_name <- paste0(file_name, ".", file_extension)
+  file_path <- file.path(plot_dir, file_name)
+  file_path <- normalizePath(file_path, mustWork = FALSE)
+  
+  # Save the plot in the specified format
+  switch(format,
+         png = {
+           png(file_path, width = width, height = height, res = dpi)
+           print(plot_object)
+           dev.off()
+         },
+         pdf = {
+           width_in <- width / dpi
+           height_in <- height / dpi
+           pdf(file_path, width = width_in, height = height_in)
+           print(plot_object)
+           dev.off()
+         },
+         jpeg = {
+           jpeg(file_path, width = width, height = height, res = dpi)
+           print(plot_object)
+           dev.off()
+         },
+         tiff = {
+           tiff(file_path, width = width, height = height, res = dpi)
+           print(plot_object)
+           dev.off()
+         },
+         {
+           # Default to PNG if format is not recognized
+           png(file_path, width = width, height = height, res = dpi)
+           print(plot_object)
+           dev.off()
+         })
+  
+  # Log file saved message
+  if (exists("flog.info")) {
+    flog.info("%s File Saved to %s", toupper(format), file_path)
+  } else {
+    message(toupper(format), " File Saved to ", file_path)
+  }
+}
+
