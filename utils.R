@@ -259,3 +259,26 @@ save_plot <- function(plot_object, plot_dir, count = "00", file_name = "image", 
   }
 }
 
+process_seurat_object <- function(seurat_object , dims = 1:30, nfeatures = 3000) {
+  flog.info("NormalizeData Started...")
+  seurat_object <- NormalizeData(seurat_object)
+  flog.info("NormalizeData Completed...")
+  
+  flog.info("FindVariableFeatures Started...")
+  seurat_object <- FindVariableFeatures(seurat_object, selection.method = "vst", nfeatures = nfeatures, verbose = FALSE)
+  flog.info("FindVariableFeatures Completed...")
+  
+  flog.info("ScaleData Started...")
+  seurat_object <- ScaleData(seurat_object)
+  flog.info("ScaleData Completed...")
+  
+  flog.info("RunPCA Started...")
+  seurat_object <- RunPCA(seurat_object)
+  flog.info("RunPCA Completed...")
+  
+  flog.info("FindNeighbors Started...")
+  seurat_object <- FindNeighbors(seurat_object, dims = dims, reduction = "pca")
+  flog.info("FindNeighbors Completed...")
+  
+  return(seurat_object)
+}
