@@ -2,41 +2,8 @@ library(Seurat)
 library(ggplot2)
 library(dplyr)
 
-# Step 1: Fetch expression for both genes
-genes_df <- FetchData(seurat_obj, vars = c("MITF", "TYR"))
-
-# Step 2: Sort by GENE1 and create cell order
-genes_df <- genes_df %>%
-  arrange(TYR) %>%
-  mutate(cell_order = row_number())
-
-# Step 3: Bin GENE1 into, say, 50 bins
-genes_df <- genes_df %>%
-  mutate(bin = ntile(TYR, 100))  # You can change the number of bins
-
-# Step 4: Calculate average expression per bin
-binned_means <- genes_df %>%
-  group_by(bin) %>%
-  summarise(
-    mean_gene1 = mean(TYR),
-    mean_gene2 = mean(MITF)
-  )
-
-# Step 5: Plot
-ggplot() +
-  geom_line(data = binned_means, aes(x = bin * (max(genes_df$cell_order)/50), y = mean_gene2), color = "red", size = 1.2) +
-  geom_line(data = binned_means, aes(x = bin * (max(genes_df$cell_order)/50), y = mean_gene1), color = "green", size = 1.2) +
-  labs(x = "Cells sorted by GENE1 expression", y = "Expression level",
-       title = "GENE1 raw + GENE2 binned-smoothed expression") +
-  theme_minimal()
-
-```
 
 
-```{r}
-library(Seurat)
-library(ggplot2)
-library(dplyr)
 
 plot_gene_trends <- function(seurat_obj, gene_list, sort_by_gene, bin_size = 50, colors = NULL) {
   # Step 1: Fetch gene expression
