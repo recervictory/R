@@ -6,6 +6,11 @@ library(patchwork)
 
 
 
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
 
 plot_gene_trends <- function(seurat_obj, gene_list, sort_by_gene, bin_size = 50, colors = NULL, cluster_colors = NULL, annotation_name = "seurat_clusters") {
 
@@ -73,11 +78,15 @@ plot_gene_trends <- function(seurat_obj, gene_list, sort_by_gene, bin_size = 50,
     geom_tile() +
     scale_fill_manual(values = cluster_colors) +
     theme_void() +
-    theme(legend.position = "none")
+          theme(
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.margin = margin(0, 10, 0, 10)
+  )
 
   # Step 10: Combine both plots
   combined_plot <- main_plot / annotation_plot + plot_layout(heights = c(4, 0.4))
   
   return(combined_plot)
 }
-
