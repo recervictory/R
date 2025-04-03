@@ -99,7 +99,7 @@ plot_gene_trends <- function(seurat_obj, gene_list, sort_by_gene = NULL, bin_siz
     theme_minimal()
   
   if (verbose) message("[Step 9] Preparing annotation bar...")
-  annotation_df <- expr_df %>% select(cell_order, cluster)
+  annotation_df <- expr_df %>% dplyr::select(cell_order, cluster)
   
   if (is.null(cluster_colors)) {
     unique_clusters <- sort(unique(annotation_df$cluster))
