@@ -531,17 +531,17 @@ scType_cell_prediction <- function(seuratObject,
   flog.info("Gene sets prepared.")
   
   # Check for Seurat package version
-  seurat_package_v5 <- isFALSE('counts' %in% names(attributes(seuratObject[["RNA"]])))
+  seurat_package_v5 <- isFALSE('scale.data' %in% names(attributes(seuratObject[["RNA"]])))
   flog.info(sprintf("Seurat object %s is used", ifelse(seurat_package_v5, "v5", "v4")))
   
   # Extract scaled data
   flog.info("Extracting scaled data.")
   scRNAseqData_scaled <- if (seurat_package_v5) {
-    as.matrix(seuratObject@assays$integated@scale.data)
+    as.matrix(GetAssayData(seuratObject, layer = "scale.data")) #[["RNA"]]$scale.data
   } else {
     as.matrix(seuratObject[[assay]]@scale.data)
   }
-  flog.info("Scaled data extracted.")
+
   
   # Calculate scores
   flog.info("Calculating SCTYPE scores.")
@@ -640,4 +640,144 @@ create_consensus_CT_clusters <- function(seuratObject, cutoff = 0, resolution = 
 }
 
 
+#####
+
+create_consensus_Mps <- function(seuratObject, cutoff = 0.2, resolution = 20, cutoff_list = NULL) {
+  seuratObject$MPs_consensus_Score <- NULL
+  seuratObject$MPs_Second_consensus_Score <- NULL
+  seuratObject$MPs_Third_consensus_Score <- NULL
+  
+  # Run Seurat Cluster
+  seuratObject <- FindClusters(seuratObject, resolution = resolution)
+  
+  prefixes <- c("MPs")
+  meta_data <- seuratObject@meta.data
+  
+  # Identifizieren der Spalten MPs basierend auf den Prefixen
+  mp.col.names <- colnames(meta_data)[sapply(colnames(meta_data), function(col) any(startsWith(col, prefixes)))]
+  
+  df <- meta_data[, mp.col.names, drop = FALSE]
+  
+  # Sicherstellen, dass alle Spalten in df numerisch sind
+  df <- df[sapply(df, is.numeric)]
+  
+  # Wenn eine Cutoff-Liste bereitgestellt wird, damit NA-Werte gesetzt werden
+  if (!is.null(cutoff_list)) {
+    for (col in names(cutoff_list)) {
+      if (col %in% colnames(df)) {
+        df[[col]][df[[col]] < cutoff_list[[col]]] <- NA
+      }
+    }
+  }
+  
+  # Das gleiche wie vorher, nur mit NAs
+  max_scores <- numeric(nrow(df))
+  max_cols <- character(nrow(df))
+  second_max_scores <- numeric(nrow(df))
+  second_max_cols <- character(nrow(df))
+  third_max_scores <- numeric(nrow(df))
+  third_max_cols <- character(nrow(df))
+  confidence <- character(nrow(df))
+  
+  for (i in 1:nrow(df)) {
+    row <- as.numeric(df[i, ])
+    sorted_indices <- order(row, decreasing = TRUE, na.last = NA)
+    sorted_values <- row[sorted_indices]
+    
+    max_val <- sorted_values[1]
+    max_col <- names(df)[sorted_indices[1]]
+    
+    second_max_val <- sorted_values[2]
+    second_max_col <- names(df)[sorted_indices[2]]
+    
+    third_max_val <- sorted_values[3]
+    third_max_col <- names(df)[sorted_indices[3]]
+    
+    max_scores[i] <- max_val
+    max_cols[i] <- max_col
+    second_max_scores[i] <- second_max_val
+    second_max_cols[i] <- second_max_col
+    third_max_scores[i] <- third_max_val
+    third_max_cols[i] <- third_max_col
+    confidence[i] <- ifelse(max_val > cutoff, "Confident", "Not Confident")
+  }
+  
+  # Neue Spalten zum Dataframe hinzufügen
+  new_df <- data.frame(
+    MPs_consensus_Score = max_scores,
+    MPs_consensus = sub("^MPs_", "", max_cols),
+    MPs_Second_consensus_Score = second_max_scores,
+    MPs_Second_consensus = sub("^MPs_", "", second_max_cols),
+    MPs_Third_consensus_Score = third_max_scores,
+    MPs_Third_consensus = sub("^MPs_", "", third_max_cols),
+    MPs_consensus_Confidence = confidence,
+    MPs_consensus_cluster = seuratObject$seurat_clusters
+  )
+  
+  # Funktion zur Berechnung des Modus
+  get_mode <- function(v) {
+    uniq_v <- unique(v)
+    uniq_v[which.max(tabulate(match(v, uniq_v)))]
+  }
+  
+  new_df <- new_df %>%
+    group_by(MPs_consensus_cluster) %>%
+    mutate(
+      MPs_consensus_cluster_program = get_mode(MPs_consensus),
+      MPs_Second_cluster_program = get_mode(MPs_Second_consensus),
+      MPs_Third_cluster_program = get_mode(MPs_Third_consensus)
+    ) %>%
+    ungroup()
+  
+  return(new_df)
+}
+
+# Beispiel für die Verwendung der Funktion mit einer benannten Liste von Cutoff-Werten
+cutoff_values <- list(
+  Col1 = 0.2,
+  Col2 = 0.4
+)
+
+transferMetadata <- function(seurat_object, 
+                             source_metadata_colname, 
+                             destination_metadata_colname, 
+                             new_metadata_colname, 
+                             match_values, 
+                             verbose = TRUE) {
+  
+
+  
+  flog.info("😎 Function Name: transferMetadata")
+  flog.info("🔍 Starting metadata transfer from '%s' to '%s'.", source_metadata_colname, new_metadata_colname)
+  
+  # Extract metadata
+  metadata <- seurat_object@meta.data
+  
+  # Check if source and destination columns exist
+  if (!source_metadata_colname %in% colnames(metadata)) {
+    flog.error("❌ Source metadata column '%s' does not exist in the Seurat object.", source_metadata_colname)
+    stop(sprintf("Source metadata column '%s' not found.", source_metadata_colname))
+  }
+  
+  if (!destination_metadata_colname %in% colnames(metadata)) {
+    flog.error("❌ Destination metadata column '%s' does not exist in the Seurat object.", destination_metadata_colname)
+    stop(sprintf("Destination metadata column '%s' not found.", destination_metadata_colname))
+  }
+  
+  flog.info("✅ Source and destination columns exist.")
+  
+  # Create new column based on matching conditions
+  flog.info("📝 Creating new metadata column '%s' based on match values.", new_metadata_colname)
+  metadata[[new_metadata_colname]] <- ifelse(metadata[[source_metadata_colname]] %in% match_values,
+                                             metadata[[source_metadata_colname]], 
+                                             metadata[[destination_metadata_colname]])
+  
+  # Update the Seurat object with the new metadata column
+  flog.info("🔄 Updating Seurat object with new metadata column: '%s'.", new_metadata_colname)
+  seurat_object@meta.data <- metadata
+  
+  flog.info("🎉 Metadata transfer completed successfully.")
+  
+  return(seurat_object)
+}
 
