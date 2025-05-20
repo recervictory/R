@@ -1,5 +1,6 @@
 #### Import Library #####
 library(futile.logger)
+library(Cairo)
 flog.info("🤖 Function File: main.R")
 
 
@@ -18,67 +19,71 @@ save_plot <- function(plot_object, plot_dir,
                       plot_type = "scatter",
                       width = 800, height = 800,
                       dpi = 72, ...) {
-  flog.info("😎 Function Name: save_plot ")
+  flog.info("😎 Function Name: save_plot")
 
   # Ensure plot_dir exists
   if (!dir.exists(plot_dir)) {
     dir.create(plot_dir, recursive = TRUE)
   }
 
-  # Normalize file path and construct file name
+  # Determine file extension
   file_extension <- switch(format,
     png = "png",
     pdf = "pdf",
     jpeg = "jpg",
+    jpg = "jpg",
     tiff = "tiff",
     "png"
-  ) # default to png if format is not recognized
+  )
 
+  # Construct the file name and path
   file_name <- paste(count, project_name, batch_name, file_name, plot_type, sep = "_")
   file_name <- paste0(file_name, ".", file_extension)
   file_path <- file.path(plot_dir, file_name)
   file_path <- normalizePath(file_path, mustWork = FALSE)
 
-  # Save the plot in the specified format
-  switch(format,
-    png = {
-      png(file_path, width = width, height = height, res = dpi)
+  # Save the plot based on format
+  tryCatch({
+    if (format == "png") {
+      if (capabilities("cairo")) {
+        Cairo::CairoPNG(file_path, width = width, height = height, res = dpi)
+      } else {
+        png(file_path, width = width, height = height, res = dpi)
+      }
       print(plot_object)
       dev.off()
-    },
-    pdf = {
+    } else if (format %in% c("jpeg", "jpg")) {
+      jpeg(file_path, width = width, height = height, res = dpi)
+      print(plot_object)
+      dev.off()
+    } else if (format == "tiff") {
+      tiff(file_path, width = width, height = height, res = dpi)
+      print(plot_object)
+      dev.off()
+    } else if (format == "pdf") {
       width_in <- width / dpi
       height_in <- height / dpi
       pdf(file_path, width = width_in, height = height_in)
       print(plot_object)
       dev.off()
-    },
-    jpeg = {
-      jpeg(file_path, width = width, height = height, res = dpi)
-      print(plot_object)
-      dev.off()
-    },
-    tiff = {
-      tiff(file_path, width = width, height = height, res = dpi)
-      print(plot_object)
-      dev.off()
-    },
-    {
-      # Default to PNG if format is not recognized
+    } else {
+      # Default to PNG
       png(file_path, width = width, height = height, res = dpi)
       print(plot_object)
       dev.off()
     }
-  )
 
-  # Log file saved message
-  if (exists("flog.info")) {
-    flog.info("%s File Saved to %s", toupper(format), file_path)
-  } else {
-    message(toupper(format), " File Saved to ", file_path)
-  }
+    # Log success
+    if (exists("flog.info")) {
+      flog.info("%s file saved to %s", toupper(format), file_path)
+    } else {
+      message(toupper(format), " file saved to ", file_path)
+    }
+  }, error = function(e) {
+    flog.error("Error saving plot: %s", e$message)
+    stop(e)
+  })
 }
-
 
 
 # Seurat Analysis Workflow
