@@ -1,0 +1,153 @@
+source("https://raw.githubusercontent.com/AntonioDeFalco/SCEVAN/refs/heads/main/R/plotHeatmap.R")
+
+library(Seurat)
+library(infercnv)
+library(futile.logger)
+library(dplyr)
+library(scCustomize)
+library(infercnv)
+library(tidyverse)
+library(ComplexHeatmap)
+library(circlize)
+library(RColorBrewer)
+library(SCEVAN)
+
+
+
+plotCNA_withAnnotCells <- function(SampleName, metadata, COLUMNS_TO_PLOT,
+                                   outputPATH = "./output/", SUBCLONE = FALSE,
+                                   hcc = NULL, 
+                                   plotNAME = "heatmap.png",
+                                   par_cores = 20) {
+  library(RColorBrewer)
+  library(parallelDist)
+  library(gplots)  # for heatmap.3
+
+
+  metadata <- metadata %>%
+  select("CT_scevan_new_class","CT_scevan_new_subclone") %>%
+  mutate(CT_scevan_new_subclone = replace_na(as.character(CT_scevan_new_subclone), "NA")) %>%
+  mutate(CT_scevan_new_subclone = factor(CT_scevan_new_subclone)) 
+  
+  # Load CNA matrix
+  if (SUBCLONE) {
+    load(file.path(outputPATH, paste0(SampleName, "_CNAmtxSubclones.RData")))
+    mtx_CNA <- results.com
+    outFile <- file.path(outputPATH, paste0(SampleName, "_Subclones_", plotNAME))
+  } else {
+    load(file.path(outputPATH, paste0(SampleName, "_CNAmtx.RData")))
+    mtx_CNA <- CNA_mtx_relat
+    outFile <- file.path(outputPATH, paste0(SampleName, "_Class_", plotNAME))
+  }
+
+  # Load annotation matrix
+  load(file.path(outputPATH, paste0(SampleName, "_count_mtx_annot.RData")))
+  chr_lab <- count_mtx_annot$seqnames
+  chr <- as.numeric(chr_lab) %% 2 + 1
+  rbPal1 <- colorRampPalette(c( 'lightcyan','darkblue'))
+  CHR <- rbPal1(2)[chr]
+  chr1 <- cbind(CHR, CHR)
+
+  h <- if (ncol(mtx_CNA) < 3000) 10 else 15
+
+  # Color palette
+  my_palette <- colorRampPalette(rev(brewer.pal(n = 8, name = "RdBu")))(999)
+  col_breaks <- c(seq(-1, -0.4, length = 50),
+                  seq(-0.4, -0.2, length = 150),
+                  seq(-0.2, 0.2, length = 600),
+                  seq(0.2, 0.4, length = 150),
+                  seq(0.4, 1, length = 50))
+
+  # Clustering if not provided
+  if (is.null(hcc)) {
+    set.seed(1)
+    hcc <- hclust(parDist(t(mtx_CNA), threads = par_cores, method = "euclidean"),
+                  method = "ward.D")
+  }
+
+  metadata <- metadata[colnames(mtx_CNA), , drop = FALSE]
+
+  df_colors <- brewer.pal.info[brewer.pal.info$category == "qual", ]
+  subclone_palette <- df_colors["Paired", , drop = FALSE]
+  df_colors <- df_colors[rownames(df_colors) != "Paired", , drop = FALSE]
+
+  all_colors <- lapply(COLUMNS_TO_PLOT, function(VARIABLE_NAME) {
+    message("🔍 Processing column: ", VARIABLE_NAME)
+    VARIABLE <- metadata[[VARIABLE_NAME]]
+
+    if (VARIABLE_NAME == "CT_scevan_new_class") {
+      myColors <- c("tumor" = "#FF4040", "normal" = "#00FFFF")
+    } else {
+      VARIABLE <- as.factor(VARIABLE)
+      lvls <- levels(VARIABLE)
+      lenVAR <- length(lvls)
+
+      if (VARIABLE_NAME == "CT_scevan_new_subclone") {
+        myColors <- DiscretePalette_scCustomize(num_colors = lenVAR, palette = "ditto_seq")
+      } else {
+        OK_IND <- which(df_colors$maxcolors >= lenVAR)[1]
+        if (is.na(OK_IND)) stop("⚠️ No palette found with enough colors for: ", VARIABLE_NAME)
+        palette_name <- rownames(df_colors[OK_IND, ])
+        myColors <- brewer.pal(lenVAR, palette_name)
+        df_colors <<- df_colors[-OK_IND, , drop = FALSE]
+      }
+
+      # Handle NA values
+      if (anyNA(VARIABLE)) {
+        lvls <- c(lvls, "NA")
+        myColors <- c(myColors, "white")
+      }
+
+      names(myColors) <- lvls
+    }
+
+    VARIABLE <- as.character(VARIABLE)
+    VARIABLE[is.na(VARIABLE)] <- "NA"
+    VARIABLE <- factor(VARIABLE, levels = names(myColors))
+
+    colors <- myColors[VARIABLE]
+    names(colors) <- rownames(metadata)
+
+    message("🎨 Color mapping for ", VARIABLE_NAME, ":")
+    print(myColors)
+
+    list(myColors, colors)
+  })
+
+  legends <- lapply(all_colors, `[[`, 1)
+  all_colors <- lapply(all_colors, `[[`, 2)
+  names(all_colors) <- names(legends) <- COLUMNS_TO_PLOT
+  legends <- lapply(legends, function(x) x[!is.na(names(x))])
+
+  row_annotation <- do.call(rbind, all_colors)
+  rownames(row_annotation) <- COLUMNS_TO_PLOT
+
+  # Legend positions
+  positions <- c("bottomright", "bottom", "bottomleft", "topright", "right", "bottomright")
+  positions <- positions[seq_along(legends)]
+  names(positions) <- names(legends)
+
+  plotLegends <- function() {
+    lapply(names(legends), function(x) {
+      legend(positions[[x]], legend = names(legends[[x]]), fill = legends[[x]], title = x, cex = 0.75)
+    })
+  }
+
+  # Final plotting
+  #outFile <- file.path(outputPATH, paste0(SampleName, "_", plotNAME))
+  png(outFile, height = h * 250, width = 4000, res = 300)
+
+  heatmap.3(t(mtx_CNA), dendrogram = "r", hcr = hcc,
+            ColSideColors = chr1, RowSideColors = row_annotation[, colnames(mtx_CNA), drop = FALSE],
+            RowSideColorsSize = 2, Colv = NA, Rowv = TRUE,
+            notecol = "black", col = my_palette, breaks = col_breaks, key = TRUE,
+            chr_lab = chr_lab, keysize = 1, density.info = "none", trace = "none",
+            cexRow = 3.0, cexCol = 3.0, cex.main = 4, cex.lab = 3.0,
+            symm = FALSE, symkey = FALSE, symbreaks = TRUE,
+            main = paste("Heatmap", SampleName), margins = c(25, 25))
+
+  plotLegends()
+  dev.off()
+
+  message("✅ Heatmap saved to: ", outFile)
+}
