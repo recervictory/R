@@ -65,47 +65,36 @@ plotCNA_withAnnotCells <- function(SampleName, metadata, COLUMNS_TO_PLOT,
   subclone_palette <- df_colors["Paired", , drop = FALSE]
   df_colors <- df_colors[rownames(df_colors) != "Paired", , drop = FALSE]
 
-  all_colors <- lapply(COLUMNS_TO_PLOT, function(VARIABLE_NAME) {
-    message("🔍 Processing column: ", VARIABLE_NAME)
+  all_colors <- lapply(COLUMNS_TO_PLOT, function(VARIABLE_NAME){
+    print(VARIABLE_NAME)
     VARIABLE <- metadata[[VARIABLE_NAME]]
-
-    if (VARIABLE_NAME == "CT_scevan_new_class") {
-      myColors <- c("tumor" = "#FF4040", "normal" = "#00FFFF")
-    } else {
+    
+    if(VARIABLE_NAME == "CT_scevan_new_class"){
+      myColors <- c("#FF4040", "#00FFFF")
+      names(myColors) <- c("tumor", "normal")
+    }else{
+      
+      lenVAR <- length(unique(VARIABLE))
+      
+      if(VARIABLE_NAME=="CT_scevan_new_subclone"){
+        myColors <- DiscretePalette_scCustomize(num_colors = lenVAR, palette = "ditto_seq") 
+        print(myColors)
+      }else{
+        OK_IND <- which(df_colors$maxcolors>=lenVAR)[1]
+        myColors <- brewer.pal(lenVAR,rownames(df_colors[OK_IND,]))
+        df_colors <<- df_colors[c(-OK_IND),]
+      }
+      
       VARIABLE <- as.factor(VARIABLE)
-      lvls <- levels(VARIABLE)
-      lenVAR <- length(lvls)
-
-      if (VARIABLE_NAME == "CT_scevan_new_subclone") {
-        myColors <- DiscretePalette_scCustomize(num_colors = lenVAR - 1, palette = "ditto_seq")
-      } else {
-        OK_IND <- which(df_colors$maxcolors >= lenVAR)[1]
-        if (is.na(OK_IND)) stop("⚠️ No palette found with enough colors for: ", VARIABLE_NAME)
-        palette_name <- rownames(df_colors[OK_IND, ])
-        myColors <- brewer.pal(lenVAR, palette_name)
-        df_colors <<- df_colors[-OK_IND, , drop = FALSE]
-      }
-
-      # Handle NA values
-      if (anyNA(VARIABLE)) {
-        lvls <- c(lvls, "NA")
-        myColors <- c(myColors, "white")
-      }
-
-      names(myColors) <- lvls
+      myColors["NA"] <- "gray"
+      names(myColors) <- levels(VARIABLE)
+     # myColors["NA"] <- "gray"
+      print(myColors)
     }
-
-    VARIABLE <- as.character(VARIABLE)
-    VARIABLE[is.na(VARIABLE)] <- "NA"
-    VARIABLE <- factor(VARIABLE, levels = names(myColors))
-
+    
     colors <- myColors[VARIABLE]
-    myColors["NA"] <- "white"
     names(colors) <- rownames(metadata)
-
-    message("🎨 Color mapping for ", VARIABLE_NAME, ":")
-    print(myColors)
-
+    colors
     list(myColors, colors)
   })
 
