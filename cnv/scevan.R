@@ -1,3 +1,6 @@
+# cnv/scevan.R
+# SCEVAN-based CNA heatmap plotting with per-cell metadata annotation bars.
+
 source("https://raw.githubusercontent.com/AntonioDeFalco/SCEVAN/refs/heads/main/R/plotHeatmap.R")
 
 library(Seurat)
@@ -88,7 +91,6 @@ plotCNA_withAnnotCells <- function(SampleName, metadata, COLUMNS_TO_PLOT,
       VARIABLE <- as.factor(VARIABLE)
       myColors["NA"] <- "gray"
       names(myColors) <- levels(VARIABLE)
-     # myColors["NA"] <- "gray"
       print(myColors)
     }
     
