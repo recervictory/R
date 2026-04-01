@@ -1,4 +1,6 @@
-###
+# data/color_codes.R
+# Color palette functions and named color vectors for Seurat metadata visualization.
+
 library(scCustomize)
 
 

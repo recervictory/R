@@ -1,3 +1,6 @@
+# data/canonical_markers.R
+# Reference marker gene lists for brain tumour cell type annotation.
+
 
 
 ## Versions 1 (23-04-2025)
